@@ -1,0 +1,6 @@
+# Path to the whisper-cli binary
+WHISPER_BIN="$HOME/Tools/whisper.cpp/build/bin/whisper-cli"
+
+# Directory containing ggml model files
+WHISPER_MODEL_DIR="$HOME/Tools/whisper.cpp/models"
+
