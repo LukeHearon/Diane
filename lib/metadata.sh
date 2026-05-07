@@ -77,7 +77,7 @@ if [ ! -s "$TRANSCRIPT_FILE" ]; then
     exit 1
 fi
 
-echo "$(shuf -n 1 "$DIANE_DIR/lib/loading_lines.txt")"
+echo "$(awk 'BEGIN{srand()} {lines[NR]=$0} END{print lines[int(rand()*NR)+1]}' "$DIANE_DIR/lib/loading_lines.txt")"
 
 PROMPT="$(cat "$TRANSCRIPT_FILE")"
 if [ -n "$USER_INSTRUCTION" ]; then
