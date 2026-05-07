@@ -28,6 +28,10 @@ Both actions follow the same instruction hierarchy:
 2.  Voice memos — direct commands to Diane in the memos override the system prompt. E.g., "Diane, this isn't a lab notebook entry, I'm going to record a discussion about data cleaning that we need to do. I would like you to create a list of action items organized by filename."
 3.  System prompt — the contents of `lib/notes.md` or `lib/metadata.md`
 
+## Platform
+
+macOS only. The scripts use `/bin/zsh` and have not been tested on Linux or Windows.
+
 ## Requirements
 
 -   [whisper.cpp](https://github.com/ggerganov/whisper.cpp) built locally
