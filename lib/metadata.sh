@@ -77,7 +77,7 @@ if [ ! -s "$TRANSCRIPT_FILE" ]; then
     exit 1
 fi
 
-echo "Sending transcription to Diane..."
+echo "$(shuf -n 1 "$DIANE_DIR/lib/loading_lines.txt")"
 
 PROMPT="$(cat "$TRANSCRIPT_FILE")"
 if [ -n "$USER_INSTRUCTION" ]; then
