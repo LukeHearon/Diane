@@ -46,6 +46,7 @@ usage() {
     exit 0
 }
 
+POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -m)  MODEL="$2";               shift 2 ;;
@@ -55,11 +56,11 @@ while [[ $# -gt 0 ]]; do
         -d)  DELETE_TRANSCRIPTIONS=true; shift ;;
         -h)  usage ;;
         -*)  usage ;;
-        *)   break ;;
+        *)   POSITIONAL+=("$1"); shift ;;
     esac
 done
 
-USER_INSTRUCTION="$1"
+USER_INSTRUCTION="${POSITIONAL[0]}"
 
 if [ -f "$NOTES_FILE" ]; then
     echo "Error: notes.md already exists in this directory. Remove it first if you want to re-run Diane."
@@ -70,7 +71,7 @@ fi
 WHISPER_ARGS=("$CURRENT_DIR")
 [ -n "$WHISPER_MODEL" ] && WHISPER_ARGS=(-m "$WHISPER_MODEL" "${WHISPER_ARGS[@]}")
 [ -n "$WHISPER_MAX_CONTEXT" ] && WHISPER_ARGS=(-mc "$WHISPER_MAX_CONTEXT" "${WHISPER_ARGS[@]}")
-"$DIANE_DIR/whisper-dir.sh" "${WHISPER_ARGS[@]}"
+"$DIANE_DIR/whisper-dir.sh" "${WHISPER_ARGS[@]}" || exit 1
 
 if [ ! -s "$TRANSCRIPT_FILE" ]; then
     echo "No audio files found or transcription produced nothing."

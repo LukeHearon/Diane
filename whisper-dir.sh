@@ -22,6 +22,7 @@ usage() {
 
 [ $# -eq 0 ] && usage
 
+POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -m)  MODEL="$2";       shift 2 ;;
@@ -30,11 +31,11 @@ while [[ $# -gt 0 ]]; do
         -t)  STRIP_TIMESTAMPS=false; shift ;;
         -f)  OVERWRITE=true;   shift ;;
         -*)  usage ;;
-        *)   break ;;
+        *)   POSITIONAL+=("$1"); shift ;;
     esac
 done
 
-INPUT_DIR="${1}"
+INPUT_DIR="${POSITIONAL[0]}"
 
 if [ -z "$INPUT_DIR" ]; then
     echo "Error: input_dir is required"
@@ -55,7 +56,10 @@ if [ ! -f "$WHISPER_BIN" ]; then
 fi
 
 if [ ! -f "$MODEL_PATH" ]; then
-    echo "Error: Model not found at $MODEL_PATH"
+    echo "Error: Model '$MODEL' not found. Available models:"
+    for f in "$MODEL_DIR"/ggml-*.bin; do
+        [ -f "$f" ] && echo "  ${f##*/ggml-}" | sed 's/\.bin$//'
+    done
     exit 1
 fi
 
