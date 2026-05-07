@@ -77,7 +77,8 @@ if [ ! -s "$TRANSCRIPT_FILE" ]; then
     exit 1
 fi
 
-echo "$(awk 'BEGIN{srand()} {lines[NR]=$0} END{print lines[int(rand()*NR)+1]}' "$DIANE_DIR/lib/loading_lines.txt")"
+source "$DIANE_DIR/lib/spinner.sh"
+spinner_start
 
 PROMPT="$(cat "$TRANSCRIPT_FILE")"
 if [ -n "$USER_INSTRUCTION" ]; then
@@ -94,6 +95,8 @@ claude -p "$PROMPT" \
     --system-prompt "$(cat "$(dirname "$0")/shared.md"; printf '\n\n'; cat "$(dirname "$0")/metadata.md")" \
     --tools "" \
     > "$OUTPUT_TMP"
+
+spinner_stop
 
 mv "$OUTPUT_TMP" "$OUTPUT_FILE"
 echo "Metadata written to: $OUTPUT_FILE"
