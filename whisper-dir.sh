@@ -8,6 +8,7 @@ MODEL="${WHISPER_DEFAULT_MODEL:-medium.en}"
 STRIP_TIMESTAMPS=true
 OVERWRITE=false
 OUTPUT_FILE=""
+MAX_CONTEXT=0
 
 usage() {
     echo "Usage: whisper-dir [options] <input_dir>"
@@ -15,21 +16,23 @@ usage() {
     echo "  -o <file>      Output file path (default: <input_dir>/transcriptions.md)"
     echo "  -t             Keep timestamps (stripped by default)"
     echo "  -f             Overwrite output file (appends by default)"
+    echo "  -mc <n>        Max context tokens from previous segment (default: 0, reduces hallucinations)"
     exit 1
 }
 
 [ $# -eq 0 ] && usage
 
-while getopts "m:o:tf" opt; do
-    case $opt in
-        m) MODEL="$OPTARG" ;;
-        o) OUTPUT_FILE="$OPTARG" ;;
-        t) STRIP_TIMESTAMPS=false ;;
-        f) OVERWRITE=true ;;
-        *) usage ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -m)  MODEL="$2";       shift 2 ;;
+        -o)  OUTPUT_FILE="$2"; shift 2 ;;
+        -mc) MAX_CONTEXT="$2"; shift 2 ;;
+        -t)  STRIP_TIMESTAMPS=false; shift ;;
+        -f)  OVERWRITE=true;   shift ;;
+        -*)  usage ;;
+        *)   break ;;
     esac
 done
-shift $((OPTIND - 1))
 
 INPUT_DIR="${1}"
 
@@ -83,11 +86,11 @@ while IFS= read -r f; do
     echo "" >> "$OUTPUT_FILE"
 
     if [ "$STRIP_TIMESTAMPS" = true ]; then
-        "$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" 2>/dev/null \
+        "$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" -mc "$MAX_CONTEXT" 2>/dev/null \
             | sed 's/\[[0-9:\.]* --> [0-9:\.]*\][[:space:]]*//' \
             >> "$OUTPUT_FILE"
     else
-        "$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" 2>/dev/null >> "$OUTPUT_FILE"
+        "$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" -mc "$MAX_CONTEXT" 2>/dev/null >> "$OUTPUT_FILE"
     fi
 
     echo "" >> "$OUTPUT_FILE"
