@@ -1,12 +1,5 @@
 #!/bin/bash
 
-# Load config
-DIANE_CONFIG="${DIANE_CONFIG:-$HOME/.config/diane/config.txt}"
-if [ -f "$DIANE_CONFIG" ]; then
-    # shellcheck source=/dev/null
-    source "$DIANE_CONFIG"
-fi
-
 FORMATS="aac aif aiff caf flac mp2 mp3 opus tta wav wma wv"
 
 WHISPER_BIN="${WHISPER_BIN:-$HOME/Tools/whisper.cpp/build/bin/whisper-cli}"

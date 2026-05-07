@@ -2,6 +2,12 @@
 
 DIANE_DIR="$(dirname "$0")"
 CURRENT_DIR="$(pwd)"
+
+DIANE_CONFIG="${DIANE_CONFIG:-$HOME/.config/diane/config.txt}"
+if [ -f "$DIANE_CONFIG" ]; then
+    # shellcheck source=/dev/null
+    source "$DIANE_CONFIG"
+fi
 TRANSCRIPT_FILE="$CURRENT_DIR/transcriptions.md"
 NOTES_FILE="$CURRENT_DIR/notes.md"
 
