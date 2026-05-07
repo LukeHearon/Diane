@@ -92,9 +92,12 @@ while IFS= read -r f; do
     if [ "$STRIP_TIMESTAMPS" = true ]; then
         "$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" -mc "$MAX_CONTEXT" 2>/dev/null \
             | sed 's/\[[0-9:\.]* --> [0-9:\.]*\][[:space:]]*//' \
+            | sed '/^[[:space:]]*[\[\(*]/d' \
             >> "$OUTPUT_FILE"
     else
-        "$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" -mc "$MAX_CONTEXT" 2>/dev/null >> "$OUTPUT_FILE"
+        "$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" -mc "$MAX_CONTEXT" 2>/dev/null \
+            | sed '/^[[:space:]]*[\[\(*]/d' \
+            >> "$OUTPUT_FILE"
     fi
 
     echo "" >> "$OUTPUT_FILE"

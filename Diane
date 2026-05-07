@@ -88,13 +88,15 @@ if [ -n "$USER_INSTRUCTION" ]; then
 Special instruction from the researcher: $USER_INSTRUCTION"
 fi
 
+NOTES_TMP="$(mktemp)"
 claude -p "$PROMPT" \
     --model "$MODEL" \
     --effort "$EFFORT" \
     --system-prompt "$(cat "$DIANE_DIR/DIANE.md")" \
     --tools "" \
-    > "$NOTES_FILE"
+    > "$NOTES_TMP"
 
+mv "$NOTES_TMP" "$NOTES_FILE"
 echo "Notes written to: $NOTES_FILE"
 
 if [ "$DELETE_TRANSCRIPTIONS" = true ]; then
