@@ -1,0 +1,117 @@
+#!/bin/zsh
+
+DIANE_DIR="$(dirname "$0")/.."
+CURRENT_DIR="$(pwd)"
+
+DIANE_CONFIG="${DIANE_CONFIG:-$HOME/.config/diane/config.txt}"
+if [ -f "$DIANE_CONFIG" ]; then
+    # shellcheck source=/dev/null
+    source "$DIANE_CONFIG"
+fi
+TRANSCRIPT_FILE="$CURRENT_DIR/metadata_transcriptions.md"
+OUTPUT_FILE="$CURRENT_DIR/metadata.csv"
+
+MODEL="sonnet"
+EFFORT="medium"
+WHISPER_MODEL=""
+WHISPER_MAX_CONTEXT=""
+WHISPER_SNIP_SECONDS=""
+WHISPER_PROMPT=""
+DELETE_TRANSCRIPTIONS=false
+
+usage() {
+    echo "Usage: Diane metadata [flags] [message]"
+    echo ""
+    echo "Snips and transcribes audio files in the current directory, then extracts"
+    echo "recorder deployment metadata into metadata.csv."
+    echo ""
+    echo "Flags:"
+    echo "  -m <model>    Claude model to use (default: sonnet)"
+    echo "                Aliases: sonnet, opus, haiku"
+    echo "                Full IDs: claude-sonnet-4-6, claude-opus-4-7, etc."
+    echo "  -e <level>    Thinking effort: low, medium, high, xhigh, max (default: medium)"
+    echo "  -w <model>    Whisper model to use (default: from config, or large-v3-turbo)"
+    echo "                Examples: tiny.en, base.en, small.en, medium.en, large-v3"
+    echo "  -s <seconds>  Audio snip duration in seconds (default: 120)"
+    echo "  -wp <prompt>  Transcription hint passed to whisper"
+    echo "  -mc <n>       Max context tokens from previous segment (default: 0)"
+    echo "  -d            Delete metadata_transcriptions.md after metadata.csv is written"
+    echo "  -h            Show this help message"
+    echo ""
+    echo "Arguments:"
+    echo "  message  Optional message passed directly to Diane (overrides everything else)"
+    echo ""
+    echo "Examples:"
+    echo "  Diane metadata"
+    echo "  Diane metadata \"Add a varieties column where every entry is Elliot\""
+    echo "  Diane metadata -s 60"
+    echo "  Diane metadata -wp \"voice memos from the Diel Drivers experiment\""
+    echo "  Diane metadata -m opus -e high"
+    echo "  Diane metadata \"Recorders 3 and 4 were swapped — correct in output\""
+    exit 0
+}
+
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -m)  MODEL="$2";                shift 2 ;;
+        -e)  EFFORT="$2";               shift 2 ;;
+        -w)  WHISPER_MODEL="$2";        shift 2 ;;
+        -mc) WHISPER_MAX_CONTEXT="$2";  shift 2 ;;
+        -s)  WHISPER_SNIP_SECONDS="$2"; shift 2 ;;
+        -wp) WHISPER_PROMPT="$2";       shift 2 ;;
+        -d)  DELETE_TRANSCRIPTIONS=true; shift ;;
+        -h)  usage ;;
+        -*)  usage ;;
+        *)   POSITIONAL+=("$1"); shift ;;
+    esac
+done
+
+USER_INSTRUCTION="${POSITIONAL[0]}"
+
+if [ -f "$OUTPUT_FILE" ]; then
+    echo "Error: metadata.csv already exists in this directory. Remove it first if you want to re-run Diane."
+    exit 1
+fi
+
+# Snip and transcribe audio files (always overwrites to avoid stale appends)
+SNIP_ARGS=()
+[ -n "$WHISPER_MODEL" ]        && SNIP_ARGS+=(-m "$WHISPER_MODEL")
+[ -n "$WHISPER_SNIP_SECONDS" ] && SNIP_ARGS+=(-s "$WHISPER_SNIP_SECONDS")
+[ -n "$WHISPER_MAX_CONTEXT" ]  && SNIP_ARGS+=(-mc "$WHISPER_MAX_CONTEXT")
+SNIP_ARGS+=(-o "$TRANSCRIPT_FILE" -w)
+[ -n "$WHISPER_PROMPT" ]       && SNIP_ARGS+=("$WHISPER_PROMPT")
+SNIP_ARGS+=("$CURRENT_DIR")
+
+"$DIANE_DIR/whisper-snip.sh" "${SNIP_ARGS[@]}" || exit 1
+
+if [ ! -s "$TRANSCRIPT_FILE" ]; then
+    echo "No audio files found or transcription produced nothing."
+    exit 1
+fi
+
+echo "Sending transcription to Diane..."
+
+PROMPT="$(cat "$TRANSCRIPT_FILE")"
+if [ -n "$USER_INSTRUCTION" ]; then
+    PROMPT="$PROMPT
+
+---
+Special instruction from the researcher: $USER_INSTRUCTION"
+fi
+
+OUTPUT_TMP="$(mktemp)"
+claude -p "$PROMPT" \
+    --model "$MODEL" \
+    --effort "$EFFORT" \
+    --system-prompt "$(cat "$(dirname "$0")/shared.md"; printf '\n\n'; cat "$(dirname "$0")/metadata.md")" \
+    --tools "" \
+    > "$OUTPUT_TMP"
+
+mv "$OUTPUT_TMP" "$OUTPUT_FILE"
+echo "Metadata written to: $OUTPUT_FILE"
+
+if [ "$DELETE_TRANSCRIPTIONS" = true ]; then
+    rm "$TRANSCRIPT_FILE"
+    echo "Deleted metadata_transcriptions.md"
+fi
