@@ -3,18 +3,9 @@
 DIANE_DIR="$(dirname "$0")/.."
 CURRENT_DIR="$(pwd)"
 
-DIANE_CONFIG="${DIANE_CONFIG:-$HOME/.config/diane/config.txt}"
-if [ -f "$DIANE_CONFIG" ]; then
-    # shellcheck source=/dev/null
-    source "$DIANE_CONFIG"
-fi
 TRANSCRIPT_FILE="$CURRENT_DIR/transcriptions.md"
 NOTES_FILE="$CURRENT_DIR/notes.md"
 
-MODEL="sonnet"
-EFFORT="medium"
-WHISPER_MODEL=""
-WHISPER_MAX_CONTEXT=""
 DELETE_TRANSCRIPTIONS=false
 
 usage() {
@@ -27,9 +18,10 @@ usage() {
     echo "               Aliases: sonnet, opus, haiku"
     echo "               Full IDs: claude-sonnet-4-6, claude-opus-4-7, etc."
     echo "  -e <level>   Thinking effort: low, medium, high, xhigh, max (default: medium)"
-    echo "  -w <model>   Whisper model to use (default: from config, or medium.en)"
+    echo "  -w <model>   Whisper model to use (default: large-v3-turbo)"
     echo "               Examples: tiny.en, base.en, small.en, medium.en, large-v3"
     echo "  -mc <n>      Max context tokens from previous segment (default: 0, reduces hallucinations)"
+    echo "  -o <path>    Output file path (default: notes.md in current directory)"
     echo "  -d           Delete transcriptions.md after notes.md is written"
     echo "  -h           Show this help message"
     echo ""
@@ -49,10 +41,7 @@ usage() {
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -m)  MODEL="$2";               shift 2 ;;
-        -e)  EFFORT="$2";              shift 2 ;;
-        -w)  WHISPER_MODEL="$2";       shift 2 ;;
-        -mc) WHISPER_MAX_CONTEXT="$2"; shift 2 ;;
+        -o)  NOTES_FILE="$2";            shift 2 ;;
         -d)  DELETE_TRANSCRIPTIONS=true; shift ;;
         -h)  usage ;;
         -*)  usage ;;
@@ -67,10 +56,8 @@ if [ -f "$NOTES_FILE" ]; then
     exit 1
 fi
 
-# Transcribe all audio files in the current directory (whisper-dir skips already-transcribed files)
-WHISPER_ARGS=("$CURRENT_DIR")
-[ -n "$WHISPER_MODEL" ] && WHISPER_ARGS=(-m "$WHISPER_MODEL" "${WHISPER_ARGS[@]}")
-[ -n "$WHISPER_MAX_CONTEXT" ] && WHISPER_ARGS=(-mc "$WHISPER_MAX_CONTEXT" "${WHISPER_ARGS[@]}")
+WHISPER_ARGS=(-m "$DIANE_WHISPER_MODEL" "$CURRENT_DIR")
+[ -n "$DIANE_WHISPER_MAX_CONTEXT" ] && WHISPER_ARGS=(-mc "$DIANE_WHISPER_MAX_CONTEXT" "${WHISPER_ARGS[@]}")
 "$DIANE_DIR/whisper-dir.sh" "${WHISPER_ARGS[@]}" || exit 1
 
 if [ ! -s "$TRANSCRIPT_FILE" ]; then
@@ -90,8 +77,8 @@ fi
 
 NOTES_TMP="$(mktemp)"
 claude -p "$PROMPT" \
-    --model "$MODEL" \
-    --effort "$EFFORT" \
+    --model "$DIANE_MODEL" \
+    --effort "$DIANE_EFFORT" \
     --system-prompt "$(cat "$(dirname "$0")/shared.md"; printf '\n\n'; cat "$(dirname "$0")/notes.md")" \
     --tools "" \
     > "$NOTES_TMP"

@@ -79,6 +79,11 @@ for f in "${files[@]}"; do
     rel_path="${f#$INPUT_DIR/}"
     snip_path="${f%.*}_snip.wav"
 
+    if [ "$OVERWRITE" = false ] && [ -f "$OUTPUT_FILE" ] && grep -qF "# $rel_path" "$OUTPUT_FILE"; then
+        echo "[$count/$total] Skipping (already transcribed): $rel_path"
+        continue
+    fi
+
     echo "[$count/$total] Snipping + transcribing: $rel_path"
 
     # Snip first N seconds to a wav using ffmpeg
@@ -105,7 +110,13 @@ for f in "${files[@]}"; do
     # Skip if no speech detected (empty, whitespace, or only bracketed tokens)
     stripped=$(echo "$transcript" | sed '/^[[:space:]]*[\[\(]/d' | tr -d '[:space:]')
     if [ -z "$stripped" ]; then
-        echo "  No speech detected, skipping"
+        echo "  No speech detected"
+        echo "# $rel_path" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        echo "[no speech detected]" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        echo "---" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
         continue
     fi
 

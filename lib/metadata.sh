@@ -3,21 +3,12 @@
 DIANE_DIR="$(dirname "$0")/.."
 CURRENT_DIR="$(pwd)"
 
-DIANE_CONFIG="${DIANE_CONFIG:-$HOME/.config/diane/config.txt}"
-if [ -f "$DIANE_CONFIG" ]; then
-    # shellcheck source=/dev/null
-    source "$DIANE_CONFIG"
-fi
 TRANSCRIPT_FILE="$CURRENT_DIR/metadata_transcriptions.md"
 OUTPUT_FILE="$CURRENT_DIR/metadata.csv"
 
-MODEL="sonnet"
-EFFORT="medium"
-WHISPER_MODEL=""
-WHISPER_MAX_CONTEXT=""
+DELETE_TRANSCRIPTIONS=false
 WHISPER_SNIP_SECONDS=""
 WHISPER_PROMPT=""
-DELETE_TRANSCRIPTIONS=false
 
 usage() {
     echo "Usage: Diane metadata [flags] [message]"
@@ -30,11 +21,12 @@ usage() {
     echo "                Aliases: sonnet, opus, haiku"
     echo "                Full IDs: claude-sonnet-4-6, claude-opus-4-7, etc."
     echo "  -e <level>    Thinking effort: low, medium, high, xhigh, max (default: medium)"
-    echo "  -w <model>    Whisper model to use (default: from config, or large-v3-turbo)"
+    echo "  -w <model>    Whisper model to use (default: large-v3-turbo)"
     echo "                Examples: tiny.en, base.en, small.en, medium.en, large-v3"
     echo "  -s <seconds>  Audio snip duration in seconds (default: 120)"
     echo "  -wp <prompt>  Transcription hint passed to whisper"
     echo "  -mc <n>       Max context tokens from previous segment (default: 0)"
+    echo "  -o <path>     Output file path (default: metadata.csv in current directory)"
     echo "  -d            Delete metadata_transcriptions.md after metadata.csv is written"
     echo "  -h            Show this help message"
     echo ""
@@ -54,10 +46,7 @@ usage() {
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -m)  MODEL="$2";                shift 2 ;;
-        -e)  EFFORT="$2";               shift 2 ;;
-        -w)  WHISPER_MODEL="$2";        shift 2 ;;
-        -mc) WHISPER_MAX_CONTEXT="$2";  shift 2 ;;
+        -o)  OUTPUT_FILE="$2";          shift 2 ;;
         -s)  WHISPER_SNIP_SECONDS="$2"; shift 2 ;;
         -wp) WHISPER_PROMPT="$2";       shift 2 ;;
         -d)  DELETE_TRANSCRIPTIONS=true; shift ;;
@@ -74,13 +63,11 @@ if [ -f "$OUTPUT_FILE" ]; then
     exit 1
 fi
 
-# Snip and transcribe audio files (always overwrites to avoid stale appends)
-SNIP_ARGS=()
-[ -n "$WHISPER_MODEL" ]        && SNIP_ARGS+=(-m "$WHISPER_MODEL")
-[ -n "$WHISPER_SNIP_SECONDS" ] && SNIP_ARGS+=(-s "$WHISPER_SNIP_SECONDS")
-[ -n "$WHISPER_MAX_CONTEXT" ]  && SNIP_ARGS+=(-mc "$WHISPER_MAX_CONTEXT")
-SNIP_ARGS+=(-o "$TRANSCRIPT_FILE" -w)
-[ -n "$WHISPER_PROMPT" ]       && SNIP_ARGS+=("$WHISPER_PROMPT")
+SNIP_ARGS=(-m "$DIANE_WHISPER_MODEL")
+[ -n "$WHISPER_SNIP_SECONDS" ]     && SNIP_ARGS+=(-s "$WHISPER_SNIP_SECONDS")
+[ -n "$DIANE_WHISPER_MAX_CONTEXT" ] && SNIP_ARGS+=(-mc "$DIANE_WHISPER_MAX_CONTEXT")
+SNIP_ARGS+=(-o "$TRANSCRIPT_FILE")
+[ -n "$WHISPER_PROMPT" ]           && SNIP_ARGS+=("$WHISPER_PROMPT")
 SNIP_ARGS+=("$CURRENT_DIR")
 
 "$DIANE_DIR/whisper-snip.sh" "${SNIP_ARGS[@]}" || exit 1
@@ -102,8 +89,8 @@ fi
 
 OUTPUT_TMP="$(mktemp)"
 claude -p "$PROMPT" \
-    --model "$MODEL" \
-    --effort "$EFFORT" \
+    --model "$DIANE_MODEL" \
+    --effort "$DIANE_EFFORT" \
     --system-prompt "$(cat "$(dirname "$0")/shared.md"; printf '\n\n'; cat "$(dirname "$0")/metadata.md")" \
     --tools "" \
     > "$OUTPUT_TMP"

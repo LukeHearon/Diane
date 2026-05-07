@@ -2,6 +2,20 @@
 
 DIANE_DIR="$(dirname "$0")"
 
+DIANE_CONFIG="${DIANE_CONFIG:-$HOME/.config/diane/config.txt}"
+if [ -f "$DIANE_CONFIG" ]; then
+    # shellcheck source=/dev/null
+    source "$DIANE_CONFIG"
+fi
+
+export WHISPER_BIN="${WHISPER_BIN:-$HOME/Tools/whisper.cpp/build/bin/whisper-cli}"
+export WHISPER_MODEL_DIR="${WHISPER_MODEL_DIR:-$HOME/Tools/whisper.cpp/models}"
+
+export DIANE_MODEL="sonnet"
+export DIANE_EFFORT="medium"
+export DIANE_WHISPER_MODEL="large-v3-turbo"
+export DIANE_WHISPER_MAX_CONTEXT=""
+
 usage() {
     echo "Usage: Diane <action> [options] [instruction]"
     echo ""
@@ -9,17 +23,59 @@ usage() {
     echo "  notes      Transcribe audio files and organize into notes.md"
     echo "  metadata   Extract recorder deployment metadata into metadata.csv"
     echo ""
-    echo "Run 'Diane notes -h' or 'Diane metadata -h' for action-specific options."
+    echo "Shared flags (available for all actions):"
+    echo "  -m <model>   Claude model to use (default: sonnet)"
+    echo "               Aliases: sonnet, opus, haiku"
+    echo "               Full IDs: claude-sonnet-4-6, claude-opus-4-7, etc."
+    echo "  -e <level>   Thinking effort: low, medium, high, xhigh, max (default: medium)"
+    echo "  -w <model>   Whisper model to use (default: large-v3-turbo)"
+    echo "  -mc <n>      Max context tokens from previous segment (default: 0)"
+    echo ""
+    echo "Run 'Diane notes -h' or 'Diane metadata -h' for action-specific flags."
     exit 0
 }
 
 ACTION="${1:-}"
 shift 2>/dev/null
 
+REMAINING=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -m)  DIANE_MODEL="$2";               shift 2 ;;
+        -e)  DIANE_EFFORT="$2";              shift 2 ;;
+        -w)  DIANE_WHISPER_MODEL="$2";       shift 2 ;;
+        -mc) DIANE_WHISPER_MAX_CONTEXT="$2"; shift 2 ;;
+        *)   REMAINING+=("$1"); shift ;;
+    esac
+done
+
 case "$ACTION" in
-    notes)    exec "$DIANE_DIR/lib/notes.sh"    "$@" ;;
-    metadata) exec "$DIANE_DIR/lib/metadata.sh" "$@" ;;
-    -h|--help|help) usage ;;
-    "") usage ;;
+    -h|--help|help|"") usage ;;
+    notes|metadata) ;;
     *) echo "Unknown action: $ACTION"; usage ;;
+esac
+
+# Skip validation if just showing action help
+WANT_HELP=false
+for arg in "${REMAINING[@]}"; do
+    [[ "$arg" == "-h" ]] && WANT_HELP=true && break
+done
+
+if [ "$WANT_HELP" = false ]; then
+    if [ ! -f "$WHISPER_BIN" ]; then
+        echo "Error: whisper-cli not found at $WHISPER_BIN"
+        exit 1
+    fi
+    if [ ! -f "$WHISPER_MODEL_DIR/ggml-${DIANE_WHISPER_MODEL}.bin" ]; then
+        echo "Error: Whisper model '$DIANE_WHISPER_MODEL' not found. Available models:"
+        for f in "$WHISPER_MODEL_DIR"/ggml-*.bin; do
+            [ -f "$f" ] && echo "  ${f##*/ggml-}" | sed 's/\.bin$//'
+        done
+        exit 1
+    fi
+fi
+
+case "$ACTION" in
+    notes)    exec "$DIANE_DIR/lib/notes.sh"    "${REMAINING[@]}" ;;
+    metadata) exec "$DIANE_DIR/lib/metadata.sh" "${REMAINING[@]}" ;;
 esac
