@@ -14,7 +14,7 @@ usage() {
     echo "  -o <file>      Output file path (default: <input_dir>/transcriptions.md)"
     echo "  -s <seconds>   Snip duration in seconds (default: 120)"
     echo "  -mc <n>        Max context tokens from previous segment (default: 0, reduces hallucinations)"
-    echo "  -w             Overwrite output file (appends by default)"
+    echo "  -w             Overwrite existing transcripts (skips them by default)"
     echo ""
     echo "  prompt         Optional hint for whisper (e.g. 'voice memos from the Diel Drivers experiment')"
     echo "  input_dir      Directory to search (default: current directory)"

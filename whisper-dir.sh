@@ -4,23 +4,22 @@ FORMATS="aac aif aiff caf flac mp2 mp3 opus tta wav wma wv"
 
 WHISPER_BIN="${WHISPER_BIN:-$HOME/Tools/whisper.cpp/build/bin/whisper-cli}"
 MODEL_DIR="${WHISPER_MODEL_DIR:-$HOME/Tools/whisper.cpp/models}"
-MODEL="${WHISPER_DEFAULT_MODEL:-medium.en}"
+MODEL="${WHISPER_DEFAULT_MODEL:-large-v3-turbo}"
 STRIP_TIMESTAMPS=true
 OVERWRITE=false
 OUTPUT_FILE=""
 MAX_CONTEXT=0
 
 usage() {
-    echo "Usage: whisper-dir [options] <input_dir>"
-    echo "  -m <model>     Model name (default: medium.en)"
+    echo "Usage: whisper-dir [options] [input_dir]"
+    echo "  -m <model>     Model name (default: large-v3-turbo)"
     echo "  -o <file>      Output file path (default: <input_dir>/transcriptions.md)"
+    echo "  input_dir      Directory to transcribe (default: current directory)"
     echo "  -t             Keep timestamps (stripped by default)"
-    echo "  -f             Overwrite output file (appends by default)"
+    echo "  -f             Overwrite existing transcripts (skips them by default)"
     echo "  -mc <n>        Max context tokens from previous segment (default: 0, reduces hallucinations)"
     exit 1
 }
-
-[ $# -eq 0 ] && usage
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -35,12 +34,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-INPUT_DIR="${POSITIONAL[0]}"
-
-if [ -z "$INPUT_DIR" ]; then
-    echo "Error: input_dir is required"
-    usage
-fi
+INPUT_DIR="${POSITIONAL[0]:-.}"
 
 if [ ! -d "$INPUT_DIR" ]; then
     echo "Error: '$INPUT_DIR' is not a directory"
