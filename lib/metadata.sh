@@ -28,6 +28,7 @@ usage() {
     echo "  -mc <n>       Max context tokens from previous segment (default: 0)"
     echo "  -o <path>     Output file path (default: metadata.csv in current directory)"
     echo "  -d            Delete metadata_transcriptions.md after metadata.csv is written"
+    echo "  -v            Verbose: print Claude's thinking after run completes (requires jq)"
     echo "  -h            Show this help message"
     echo ""
     echo "Arguments:"
@@ -50,6 +51,7 @@ while [[ $# -gt 0 ]]; do
         -s)  WHISPER_SNIP_SECONDS="$2"; shift 2 ;;
         -wp) WHISPER_PROMPT="$2";       shift 2 ;;
         -d)  DELETE_TRANSCRIPTIONS=true; shift ;;
+        -v)  DIANE_VERBOSE=true;        shift ;;
         -h)  usage ;;
         -*)  usage ;;
         *)   POSITIONAL+=("$1"); shift ;;
@@ -77,9 +79,6 @@ if [ ! -s "$TRANSCRIPT_FILE" ]; then
     exit 1
 fi
 
-source "$DIANE_DIR/lib/spinner.sh"
-spinner_start
-
 PROMPT="$(cat "$TRANSCRIPT_FILE")"
 if [ -n "$USER_INSTRUCTION" ]; then
     PROMPT="$PROMPT
@@ -89,14 +88,35 @@ Special instruction from the researcher: $USER_INSTRUCTION"
 fi
 
 OUTPUT_TMP="$(mktemp)"
-claude -p "$PROMPT" \
-    --model "$DIANE_MODEL" \
-    --effort "$DIANE_EFFORT" \
-    --system-prompt "$(cat "$(dirname "$0")/shared.md"; printf '\n\n'; cat "$(dirname "$0")/metadata.md")" \
-    --tools "" \
-    > "$OUTPUT_TMP"
+SYSTEM_PROMPT="$(cat "$(dirname "$0")/shared.md"; printf '\n\n'; cat "$(dirname "$0")/metadata.md")"
 
-spinner_stop
+if [ "${DIANE_VERBOSE:-false}" = true ]; then
+    if ! command -v jq &>/dev/null; then
+        echo "Error: -v requires jq. Install it with: brew install jq"
+        exit 1
+    fi
+    while IFS= read -r line; do
+        thinking=$(printf '%s' "$line" | jq -r 'if .type == "assistant" then (.message.content[]? | select(.type == "thinking") | .thinking) else empty end' 2>/dev/null)
+        [[ -n "$thinking" ]] && printf '\033[2m%s\033[0m\n' "$thinking"
+        result=$(printf '%s' "$line" | jq -r 'if .type == "result" and .subtype == "success" then .result else empty end' 2>/dev/null)
+        [[ -n "$result" ]] && printf '%s\n' "$result" > "$OUTPUT_TMP"
+    done < <(claude -p "$PROMPT" \
+        --output-format stream-json --verbose \
+        --model "$DIANE_MODEL" \
+        --effort "$DIANE_EFFORT" \
+        --system-prompt "$SYSTEM_PROMPT" \
+        --tools "")
+else
+    source "$DIANE_DIR/lib/spinner.sh"
+    spinner_start
+    claude -p "$PROMPT" \
+        --model "$DIANE_MODEL" \
+        --effort "$DIANE_EFFORT" \
+        --system-prompt "$SYSTEM_PROMPT" \
+        --tools "" \
+        > "$OUTPUT_TMP"
+    spinner_stop
+fi
 
 mv "$OUTPUT_TMP" "$OUTPUT_FILE"
 echo "Metadata written to: $OUTPUT_FILE"

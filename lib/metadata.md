@@ -12,6 +12,10 @@ Recorders split into multiple files when they hit a size limit ("rollover files"
 
 Audio filenames follow the format `YYMMDD_HHMM.mp3` (recorder's internal clock at the time of recording).
 
+## Adjacent recorder capture
+
+A rolling recorder may pick up a nearby recorder being set up. If a transcription contains metadata announced for a different recorder ID — or duplicates information found elsewhere — ignore it: it is ambient capture of an adjacent setup, not a separate entry.
+
 ## Transcription errors
 
 Machine transcription may contain errors. Re-interpret obvious ones from context (e.g., "Dial Drivers" → "Diehl Drivers," "Steven site" → "Stevens site"). If you make a large re-interpretation, note it in the `notes` column on the affected rows.

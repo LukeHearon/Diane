@@ -1,21 +1,33 @@
 # Diane
 
-A personal secretary for field voice memos, directly inspired by Matt Webb's post ["Diane, I wrote a lecture by talking about it"](https://interconnected.org/home/2025/03/20/diane). Point Diane at a directory of voice memos and get a tidy `notes.md`. Or, if you're deploying field recorders, use `Diane metadata` to pull recorder IDs, sites, positions, and other deployment fields from the first few seconds of each file into a `metadata.csv`. Both actions use [whisper.cpp](https://github.com/ggerganov/whisper.cpp) for transcription and Claude Code for the AI step.
+A personal secretary for transcripting and organizing voice memos from field work, directly inspired by Matt Webb's post ["Diane, I wrote a lecture by talking about it"](https://interconnected.org/home/2025/03/20/diane). I'm developing Diane for my bioacoustics experiments, so the capabilities may be a little particular to my work. Essentially, I'm replacing my lab notebook with voice memos + Diane, and replacing hand-written metadata with automatic extraction from our recorders. I also intend to test out voice memos as my primary method of data collection, but that's a later poject.
 
-Diane is meant to clean and organize notes, not summarize them — all of the original information should appear in the output, written in the tone and perspective you recorded it in. You can also address Diane directly in a memo to issue instructions, e.g. "Diane, remove that previous note about bad weather, it's cleared up now." See the system prompts in `lib/` for more detail on how each action handles its input.
+Diane doesn't just organize notes, she can execute instructions you give in the voice memos themselves. For example, in the middle of taking a voice memo you could say, "Diane, split the weather notes into two subheadings, one for temperature and one for precipitation." Diane will follow all instructions in the voice memos with a _higher_ level of 
 
-This repo reflects the working state of my Diane tool, which raises two warnings. Firstly, this repo is unlikely to be stable and has not been tested on other machines. Second, I am optimizing Diane for my use-case in field research. Essentially, I'm replacing my lab notebook with voice memos + Diane. As such, I am liable to insert idiosyncrasies into the pipeline to fine-tune for my work. I've taken a few steps to make it easier for you, dear reader, to adapt, but generalization is a second-tier priority for me.
+This repo is unlikely to be stable and has not been tested on machines other than mine. I've taken a few steps to make it easier for other people to try out the tool, but generalization is not a priority for me at this moment.
+
+
+
 
 ## Pipelines
 
+Diane currently has two actions: notes and metadata.
+
 ### `Diane notes`
+
+Point Diane at a directory and use the "notes" action to organize field notes into a tidy `notes.md`. 
 
 1.  **whisper-dir.sh** runs [whisper.cpp](https://github.com/ggerganov/whisper.cpp) on every audio file in the current directory and concatenates the results into `transcriptions.md`.
     -   By default, whisper-dir skips already-transcribed files
     -   If you add new files to the directory, whisper-dir will append them to an existing `transcriptions.md`
-2.  **Diane** feeds that transcript to Claude with the system prompt in `lib/notes.md`, writing the result to `notes.md`.
+2.  **Diane** feeds that transcript to Claude with the system prompt in `lib/notes.md` and outputs Diane's work to `notes.md` in the working directory.
+
+Diane is meant to clean and organize notes, not summarize them — all of the original information should appear in the output, written in the tone and perspective you recorded it in. You can also address Diane directly in a memo to issue instructions, e.g. "Diane, remove that previous note about bad weather, it's cleared up now." See the system prompts in `lib/` for more detail on how each action handles its input.
 
 ### `Diane metadata`
+
+
+Or, if you're deploying field recorders, use `Diane metadata` to pull recorder IDs, sites, positions, and other deployment fields from the first few seconds of each file into a `metadata.csv`. Both actions use [whisper.cpp](https://github.com/ggerganov/whisper.cpp) for transcription and Claude Code for the AI step.
 
 1.  **whisper-snip.sh** trims the first N seconds (default: 120) from each audio file, transcribes each snip, and concatenates the results into `metadata_transcriptions.md`.
 2.  **Diane** feeds that transcript to Claude with the system prompt in `lib/metadata.md`, writing the result to `metadata.csv`.
@@ -37,6 +49,7 @@ macOS only. The scripts use `/bin/zsh` and have not been tested on Linux or Wind
 -   [whisper.cpp](https://github.com/ggerganov/whisper.cpp) built locally
 -   [Claude Code CLI](https://github.com/anthropics/claude-code) installed and authenticated
 -   [ffmpeg](https://ffmpeg.org/) (required for `Diane metadata` only)
+-   [jq](https://jqlang.org/) (required for `-v` verbose mode only)
 
 ## Setup
 
@@ -92,6 +105,7 @@ Flags:
                Examples: tiny.en, base.en, small.en, medium.en, large-v3
   -mc <n>      Max context tokens from previous segment (default: 0, reduces hallucinations)
   -d           Delete transcriptions.md after notes.md is written
+  -v           Print Claude's thinking after run completes (requires jq)
   -h           Show this help message
 ```
 
@@ -127,6 +141,7 @@ Flags:
   -wp <prompt>  Transcription hint passed to whisper
   -mc <n>       Max context tokens from previous segment (default: 0)
   -d            Delete metadata_transcriptions.md after metadata.csv is written
+  -v            Stream Claude's thinking in real time (requires jq)
   -h            Show this help message
 ```
 
@@ -149,26 +164,31 @@ Diane metadata -s 60
 Diane metadata -m opus -e high "Recorders 3 and 4 were swapped — correct in output"
 ```
 
-`whisper-dir` and `whisper-snip` can also be used standalone:
+`whisper-dir` and `whisper-snip` can also be used standalone. Both default to the current directory, so you can call either with no arguments.
 
-```         
-whisper-dir [options] <input_dir>
+**`whisper-dir`** — transcribes all audio files in a directory and concatenates the results into a single markdown file.
 
-  -m <model>   Whisper model name (default: from config, or medium.en)
+```
+whisper-dir [options] [input_dir]
+
+  -m <model>   Whisper model name (default: large-v3-turbo)
   -o <file>    Output file (default: <input_dir>/transcriptions.md)
   -t           Keep timestamps (stripped by default)
-  -f           Overwrite output file instead of appending
+  -f           Overwrite existing transcripts (skips them by default)
+  -mc <n>      Max context tokens from previous segment (default: 0)
+  input_dir    Directory to transcribe (default: current directory)
 ```
 
-```         
+**`whisper-snip`** — like `whisper-dir`, but trims each file to the first N seconds before transcribing. Useful when you only need the beginning of each recording (e.g. recorder deployment metadata).
+
+```
 whisper-snip [options] [prompt] [input_dir]
 
-  -m <model>     Model name (default: large-v3-turbo)
-  -o <file>      Output file path (default: <input_dir>/transcriptions.md)
+  -m <model>     Whisper model name (default: large-v3-turbo)
+  -o <file>      Output file (default: <input_dir>/transcriptions.md)
   -s <seconds>   Snip duration in seconds (default: 120)
   -mc <n>        Max context tokens from previous segment (default: 0)
-  -w             Overwrite output file (appends by default)
-
-  prompt         Optional hint for whisper
+  -w             Overwrite existing transcripts (skips them by default)
+  prompt         Optional transcription hint passed to whisper
   input_dir      Directory to search (default: current directory)
 ```
