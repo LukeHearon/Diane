@@ -51,7 +51,7 @@ If a field appears for some recorders but not all, include the column with blank
 
 Work through the input sequentially. For each recorder:
 
-- **Recorder IDs**: Preserve the exact format dictated (underscore, dash, plain number). If the researcher self-corrects mid-recording, use the corrected value and note the original.
+- **Recorder IDs**: The recorder ID is canonical from the **file path**, not what the researcher says. The parent directory of the audio file is the recorder ID (e.g., `experiment/site/1_42/240726_1450.mp3` → recorder `1_42`). If the researcher refers to that recorder by a different name (e.g., "recorder 42" instead of `1_42`), use the path-derived ID in the `recorder` column and note the discrepancy (e.g., "Researcher said 'recorder 42'; using path ID 1_42"). In voice memo format where no path is available, preserve the exact format dictated; note any self-corrections.
 - **Site renames**: If a direct command renames a site, apply it throughout. Note the rename only on the first occurrence.
 - **Self-corrections**: If the researcher backtracks to assign a value to a previous recorder ("go back to the previous recorder — this is bush 7"), apply the correction to that row.
 - **Computed values**: If the researcher gives a relative value ("last one plus four"), compute the absolute value. Note the derivation (e.g., "'Last one plus four' = 15+4 = 19").
