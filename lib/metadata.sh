@@ -3,12 +3,13 @@
 DIANE_DIR="$(dirname "$0")/.."
 CURRENT_DIR="$(pwd)"
 
-TRANSCRIPT_FILE="$CURRENT_DIR/metadata_transcriptions.md"
+TRANSCRIPT_FILE="$CURRENT_DIR/transcriptions_snip.md"
 OUTPUT_FILE="$CURRENT_DIR/metadata.csv"
 
 DELETE_TRANSCRIPTIONS=false
 WHISPER_SNIP_SECONDS=""
 WHISPER_PROMPT=""
+FIRST_FILE=true
 
 usage() {
     echo "Usage: Diane metadata [flags] [message]"
@@ -27,7 +28,8 @@ usage() {
     echo "  -wp <prompt>  Transcription hint passed to whisper"
     echo "  -mc <n>       Max context tokens from previous segment (default: 0)"
     echo "  -o <path>     Output file path (default: metadata.csv in current directory)"
-    echo "  -d            Delete metadata_transcriptions.md after metadata.csv is written"
+    echo "  -d            Delete transcriptions_snip.md after metadata.csv is written"
+    echo "  -nff          Disable first-file mode (default: on — only the first file per subdirectory is transcribed)"
     echo "  -v            Verbose: print Claude's thinking after run completes (requires jq)"
     echo "  -h            Show this help message"
     echo ""
@@ -50,10 +52,11 @@ while [[ $# -gt 0 ]]; do
         -o)  OUTPUT_FILE="$2";          shift 2 ;;
         -s)  WHISPER_SNIP_SECONDS="$2"; shift 2 ;;
         -wp) WHISPER_PROMPT="$2";       shift 2 ;;
-        -d)  DELETE_TRANSCRIPTIONS=true; shift ;;
-        -v)  DIANE_VERBOSE=true;        shift ;;
-        -h)  usage ;;
-        -*)  usage ;;
+        -d)   DELETE_TRANSCRIPTIONS=true; shift ;;
+        -nff) FIRST_FILE=false;          shift ;;
+        -v)   DIANE_VERBOSE=true;        shift ;;
+        -h)   usage ;;
+        -*)   usage ;;
         *)   POSITIONAL+=("$1"); shift ;;
     esac
 done
@@ -66,10 +69,11 @@ if [ -f "$OUTPUT_FILE" ]; then
 fi
 
 SNIP_ARGS=(-m "$DIANE_WHISPER_MODEL")
-[ -n "$WHISPER_SNIP_SECONDS" ]     && SNIP_ARGS+=(-s "$WHISPER_SNIP_SECONDS")
+[ "$FIRST_FILE" = true ]            && SNIP_ARGS+=(-ff)
+[ -n "$WHISPER_SNIP_SECONDS" ]      && SNIP_ARGS+=(-s "$WHISPER_SNIP_SECONDS")
 [ -n "$DIANE_WHISPER_MAX_CONTEXT" ] && SNIP_ARGS+=(-mc "$DIANE_WHISPER_MAX_CONTEXT")
 SNIP_ARGS+=(-o "$TRANSCRIPT_FILE")
-[ -n "$WHISPER_PROMPT" ]           && SNIP_ARGS+=("$WHISPER_PROMPT")
+[ -n "$WHISPER_PROMPT" ]            && SNIP_ARGS+=("$WHISPER_PROMPT")
 SNIP_ARGS+=("$CURRENT_DIR")
 
 "$DIANE_DIR/whisper-snip.sh" "${SNIP_ARGS[@]}" || exit 1
@@ -99,7 +103,7 @@ if [ "${DIANE_VERBOSE:-false}" = true ]; then
         thinking=$(printf '%s' "$line" | jq -r 'if .type == "assistant" then (.message.content[]? | select(.type == "thinking") | .thinking) else empty end' 2>/dev/null)
         [[ -n "$thinking" ]] && printf '\033[2m%s\033[0m\n' "$thinking"
         result=$(printf '%s' "$line" | jq -r 'if .type == "result" and .subtype == "success" then .result else empty end' 2>/dev/null)
-        [[ -n "$result" ]] && printf '%s\n' "$result" > "$OUTPUT_TMP"
+        [[ -n "$result" ]] && printf '%s\n' "$result" >> "$OUTPUT_TMP"
     done < <(claude -p "$PROMPT" \
         --output-format stream-json --verbose \
         --model "$DIANE_MODEL" \
@@ -123,5 +127,5 @@ echo "Metadata written to: $OUTPUT_FILE"
 
 if [ "$DELETE_TRANSCRIPTIONS" = true ]; then
     rm "$TRANSCRIPT_FILE"
-    echo "Deleted metadata_transcriptions.md"
+    echo "Deleted transcriptions_snip.md"
 fi

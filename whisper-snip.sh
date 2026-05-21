@@ -7,6 +7,8 @@ SNIP_SECONDS=120
 OVERWRITE=false
 OUTPUT_FILE=""
 MAX_CONTEXT=0
+FIRST_FILE=false
+TS_PATTERN='[0-9]{6}_[0-9]{4}'
 
 usage() {
     echo "Usage: whisper-snip [options] [prompt] [input_dir]"
@@ -15,6 +17,10 @@ usage() {
     echo "  -s <seconds>   Snip duration in seconds (default: 120)"
     echo "  -mc <n>        Max context tokens from previous segment (default: 0, reduces hallucinations)"
     echo "  -w             Overwrite existing transcripts (skips them by default)"
+    echo "  -ff            First-file mode: only transcribe the chronologically first file per directory"
+    echo "  -tp <pattern>  ERE pattern to extract timestamp from filename (default: '[0-9]{6}_[0-9]{4}')"
+    echo "                 The pattern is matched anywhere in the filename stem; surrounding clutter is ignored."
+    echo "                 Matched strings are compared lexicographically, so zero-padded formats work naturally."
     echo ""
     echo "  prompt         Optional hint for whisper (e.g. 'voice memos from the Diel Drivers experiment')"
     echo "  input_dir      Directory to search (default: current directory)"
@@ -29,6 +35,8 @@ while [[ $# -gt 0 ]]; do
         -s)  SNIP_SECONDS="$2"; shift 2 ;;
         -mc) MAX_CONTEXT="$2";  shift 2 ;;
         -w)  OVERWRITE=true;    shift ;;
+        -ff) FIRST_FILE=true;   shift ;;
+        -tp) TS_PATTERN="$2";   shift 2 ;;
         -*)  usage ;;
         *)   POSITIONAL+=("$1"); shift ;;
     esac
@@ -48,7 +56,7 @@ if [ ! -d "$INPUT_DIR" ]; then
     exit 1
 fi
 
-OUTPUT_FILE="${OUTPUT_FILE:-$INPUT_DIR/transcriptions.md}"
+OUTPUT_FILE="${OUTPUT_FILE:-$INPUT_DIR/transcriptions_snip.md}"
 MODEL_PATH="$MODEL_DIR/ggml-${MODEL}.bin"
 
 if [ ! -f "$WHISPER_BIN" ]; then
@@ -64,14 +72,97 @@ if [ ! -f "$MODEL_PATH" ]; then
     exit 1
 fi
 
-if [ "$OVERWRITE" = true ]; then
-    > "$OUTPUT_FILE"
-fi
+# Extract timestamp token from a filename using an ERE pattern.
+# Matches the pattern anywhere in the basename, ignoring surrounding clutter.
+extract_timestamp() {
+    local filepath="$1"
+    local pattern="$2"
+    basename "$filepath" | grep -oE "$pattern" | head -1
+}
+
+# Returns 0 if ffprobe can read at least one audio stream; 1 otherwise.
+is_readable_audio() {
+    ffprobe -v error -select_streams a:0 -show_entries stream=codec_type \
+        -of default=noprint_wrappers=1:nokey=1 "$1" 2>/dev/null | grep -q audio
+}
 
 # Find all mp3/wav files recursively
 mapfile -t files < <(find "$INPUT_DIR" -type f \( -iname "*.mp3" -o -iname "*.wav" \) -not -iname "*_snip.wav" | sort)
+
+SMALL_FILE_BYTES=10240         # 10 KB — skip as too-small to be a real recording
+ALSO_NEXT_BYTES=$((10*1024*1024))  # 10 MB — also snip next file when selected file is under this
+
+# In first-file mode, reduce to only the earliest file(s) per immediate parent directory.
+# Files under SMALL_FILE_BYTES are skipped; the next chronological file is promoted.
+# If the selected first file is under ALSO_NEXT_BYTES, the following file is also included.
+if [ "$FIRST_FILE" = true ]; then
+    declare -A dir_sorted  # dir -> newline-separated "ts|filepath" pairs
+
+    for f in "${files[@]}"; do
+        dir=$(dirname "$f")
+        ts=$(extract_timestamp "$f" "$TS_PATTERN")
+        if [ -z "$ts" ]; then
+            echo "Warning: no timestamp match in '$(basename "$f")' — skipping for first-file selection"
+            continue
+        fi
+        dir_sorted[$dir]+="$ts|$f"$'\n'
+    done
+
+    files=()
+    for dir in "${!dir_sorted[@]}"; do
+        # Sort entries by timestamp, extract paths in order
+        sorted_paths=()
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && sorted_paths+=("${line#*|}")
+        done < <(printf '%s' "${dir_sorted[$dir]}" | sort)
+
+        # Walk sorted list; skip files under SMALL_FILE_BYTES or unreadable by ffprobe
+        first_selected=""
+        first_idx=-1
+        for i in "${!sorted_paths[@]}"; do
+            candidate="${sorted_paths[$i]}"
+            size=$(stat -f%z "$candidate" 2>/dev/null)
+            if [[ "${size:-0}" -lt "$SMALL_FILE_BYTES" ]]; then
+                echo "  Skipping small file ($(( ${size:-0} / 1024 ))KB < 10KB): $(basename "$candidate")"
+                continue
+            fi
+            if ! is_readable_audio "$candidate"; then
+                echo "  Skipping unreadable file: $(basename "$candidate")"
+                continue
+            fi
+            first_selected="$candidate"
+            first_idx=$i
+            break
+        done
+
+        [[ -z "$first_selected" ]] && continue
+        files+=("$first_selected")
+
+        # If the selected file is under ALSO_NEXT_BYTES, also snip the next valid file
+        first_size=$(stat -f%z "$first_selected" 2>/dev/null)
+        if [[ "${first_size:-0}" -lt "$ALSO_NEXT_BYTES" ]]; then
+            for (( j = first_idx + 1; j < ${#sorted_paths[@]}; j++ )); do
+                candidate="${sorted_paths[$j]}"
+                next_size=$(stat -f%z "$candidate" 2>/dev/null)
+                if [[ "${next_size:-0}" -ge "$SMALL_FILE_BYTES" ]] && is_readable_audio "$candidate"; then
+                    echo "  First file under 10MB — also including next: $(basename "$candidate")"
+                    files+=("$candidate")
+                    break
+                fi
+            done
+        fi
+    done
+
+    IFS=$'\n' files=($(printf '%s\n' "${files[@]}" | sort))
+    unset IFS
+fi
+
 total=${#files[@]}
 count=0
+
+if [ "$OVERWRITE" = true ]; then
+    > "$OUTPUT_FILE"
+fi
 
 for f in "${files[@]}"; do
     count=$((count + 1))
