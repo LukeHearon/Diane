@@ -80,23 +80,17 @@ while IFS= read -r f; do
         continue
     fi
     echo "[$count/$total] Transcribing: $relpath"
-    echo "# $relpath" >> "$OUTPUT_FILE"
-    echo "" >> "$OUTPUT_FILE"
 
     if [ "$STRIP_TIMESTAMPS" = true ]; then
-        "$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" -mc "$MAX_CONTEXT" 2>/dev/null \
+        transcript=$("$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" -mc "$MAX_CONTEXT" 2>/dev/null \
             | sed 's/\[[0-9:\.]* --> [0-9:\.]*\][[:space:]]*//' \
-            | sed '/^[[:space:]]*[\[\(*]/d' \
-            >> "$OUTPUT_FILE"
+            | sed '/^[[:space:]]*[\[\(*]/d')
     else
-        "$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" -mc "$MAX_CONTEXT" 2>/dev/null \
-            | sed '/^[[:space:]]*[\[\(*]/d' \
-            >> "$OUTPUT_FILE"
+        transcript=$("$WHISPER_BIN" -m "$MODEL_PATH" -f "$f" -mc "$MAX_CONTEXT" 2>/dev/null \
+            | sed '/^[[:space:]]*[\[\(*]/d')
     fi
 
-    echo "" >> "$OUTPUT_FILE"
-    echo "---" >> "$OUTPUT_FILE"
-    echo "" >> "$OUTPUT_FILE"
+    printf '# %s\n\n%s\n\n---\n\n' "$relpath" "$transcript" >> "$OUTPUT_FILE"
 done < <(find "$INPUT_DIR" \( "${FIND_ARGS[@]}" \) -type f | sort)
 
 echo "Done. Output: $OUTPUT_FILE"

@@ -50,9 +50,9 @@ However, not every entry needs a description. Short entries stand on their own; 
 
 ### Errors in the transcription process
 
-Be aware that, because the voice memos are machine-transcribed, they may contain errors. If a portion of the note seems in error (e.g., "pedals" vs "petals," or "jig brakes" vs "Jake brakes"), you have liberty to make a reasonable re-interpretation, especially if there is precedent from elsewhere in the notes or clarification from context. If you need to make large re-interpretations (for example, the machine transcription seems to have messed up all instances of a proper noun across the notes), make a brief note of it, signing as Diane. If it's a small, obvious instance, do not leave a note.
+Be aware that, because the voice memos are machine-transcribed, they may contain errors. If a portion of the note seems in error (e.g., "pedals" vs "petals," or "jig brakes" vs "Jake brakes"), you have liberty to make a reasonable re-interpretation, especially if there is precedent from elsewhere in the notes or clarification from context.
 
-If the notes themselves seem impossibly vague or contradictory, leave a note of the issue and sign it as Diane. The user will retain the original audio and can follow up on issues.
+If the notes themselves seem impossibly vague or contradictory, leave a note of the issue in the From Diane section. The user will retain the original audio and transcriptions and can follow up on issues.
 
 ## Direct commands
 
@@ -67,3 +67,5 @@ If you were given any direct commands that significantly change the interpretati
 > There were initial concerns that data would not be collected from all sites, but these were resolved and all data for the day was recorded. I removed the note regarding insufficient replication.
 
 Do not list trivial actions such as flipping the order of notes or minor corrections. Most direct instructions will be trivial.
+
+Do not list obvious transcription corrections, e.g. "reed" to "read".

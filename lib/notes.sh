@@ -87,7 +87,7 @@ if [ "${DIANE_VERBOSE:-false}" = true ]; then
         thinking=$(printf '%s' "$line" | jq -r 'if .type == "assistant" then (.message.content[]? | select(.type == "thinking") | .thinking) else empty end' 2>/dev/null)
         [[ -n "$thinking" ]] && printf '\033[2m%s\033[0m\n' "$thinking"
         result=$(printf '%s' "$line" | jq -r 'if .type == "result" and .subtype == "success" then .result else empty end' 2>/dev/null)
-        [[ -n "$result" ]] && printf '%s\n' "$result" > "$NOTES_TMP"
+        [[ -n "$result" ]] && printf '%s\n' "$result" >> "$NOTES_TMP"
     done < <(claude -p "$PROMPT" \
         --output-format stream-json --verbose \
         --model "$DIANE_MODEL" \
